@@ -4,7 +4,17 @@ with lib;
 
 let
   cfg = config.services.modded-minecraft-servers;
-
+  dataDir = mkOption {
+    type = types.path;
+      default = "${dataDir}/${name}";
+        description = ''
+          The directory where MPD stores its state, tag cache, playlists etc. If
+          left as the default value this directory will automatically be created
+          before the MPD server starts, otherwise the sysadmin is responsible for
+          ensuring the directory exists with appropriate ownership and permissions.
+        '';
+   };
+  
   # Server config rendering
   serverPropertiesFile = serverConfig: pkgs.writeText "server.properties"
     (mkOptionText serverConfig);
@@ -40,11 +50,11 @@ let
 
   # Configure rsync access
   mkRsyncdConf = name: pkgs.writeText "rsyncd-minecraft.conf" ''
-    log file = /var/lib/${mkInstanceName name}/rsync.log
+    log file = ${dataDir}/${mkInstanceName name}/rsync.log
     [${mkInstanceName name}]
     use chroot = false
     comment = Minecraft server state
-    path = /var/lib/${mkInstanceName name}
+    path = {${dataDir}/${mkInstanceName name}
     read only = false
   '';
 
@@ -118,10 +128,10 @@ in {
         fullname = mkInstanceName name;
       in {
         Restart = "always";
-        ExecStart = "/var/lib/${fullname}/start.sh";
+        ExecStart = "${dataDir}/${fullname}/start.sh";
         User = fullname;
         StateDirectory = fullname;
-        WorkingDirectory = "/var/lib/${fullname}";
+        WorkingDirectory = "${dataDir}/${fullname}";
       };
 
       preStart = ''
@@ -147,7 +157,7 @@ in {
         isSystemUser = true;
         useDefaultShell = true;
         createHome = true;
-        home = "/var/lib/${mkInstanceName name}";
+        home = "${dataDir}/${mkInstanceName name}";
         openssh.authorizedKeys.keys =
           optionals (icfg.rsyncSSHKeys != [])
             map (x: rsyncCmd + " " + x) icfg.rsyncSSHKeys;
